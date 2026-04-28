@@ -12,16 +12,15 @@ let isTransitioning = false;
 let hasStoredFinalWinner = false;
 let lastWinnerIndex = 0;
 let activeLoadRequestId = 0;
-let activeHistoryRequestId = 0;
 let activeMenuValue = DEFAULT_MENU_VALUE;
 
 const poolGrid = document.getElementById("poolGrid");
 const progressText = document.getElementById("progressText");
 const battleTitle = document.getElementById("battleTitle");
 const centerNote = document.getElementById("centerNote");
-const cloudflareHistoryList = document.getElementById("cloudflareHistoryList");
 const historyList = document.getElementById("historyList");
 const clearHistoryButton = document.getElementById("clearHistoryButton");
+const rankingButton = document.getElementById("rankingButton");
 const confirmModal = document.getElementById("confirmModal");
 const confirmModalMessage = document.getElementById("confirmModalMessage");
 const cancelConfirmButton = document.getElementById("cancelConfirmButton");
@@ -42,10 +41,34 @@ const ROUND_TRANSITION_DURATION = 1800;
 const CARD_SELECTION_DURATION = 1100;
 const FINAL_CARD_SELECTION_DURATION = 1400;
 let confirmAction = null;
+let selectionAudioContext = null;
 
 function getMenuButtonByValue(menuValue) {
   return Array.from(cardSourceButtons).find(
     (button) => button.dataset.menuValue === menuValue,
+  );
+}
+
+function getMenuLabel(button) {
+  return button?.textContent?.trim() || "현재 메뉴";
+}
+
+function getRankingUrl(menuValue) {
+  const url = new URL("./ranking/", window.location.href);
+  url.searchParams.set(MENU_QUERY_PARAM, menuValue || DEFAULT_MENU_VALUE);
+  return url.href;
+}
+
+function updateRankingLink(button) {
+  if (!rankingButton || !button) {
+    return;
+  }
+
+  const menuValue = button.dataset.menuValue || DEFAULT_MENU_VALUE;
+  rankingButton.href = getRankingUrl(menuValue);
+  rankingButton.setAttribute(
+    "aria-label",
+    `${getMenuLabel(button)} 랭킹화면으로 이동`,
   );
 }
 
@@ -77,6 +100,8 @@ function setActiveMenuButton(activeButton) {
     activeMenuGroup.classList.add("is-open");
     activeMenuGroup.setAttribute("aria-expanded", "true");
   }
+
+  updateRankingLink(activeButton);
 }
 
 function updateMenuQueryParam(menuValue, shouldReplace = false) {
@@ -120,7 +145,6 @@ async function activateMenuButton(button, options = {}) {
     setActiveMenuButton(button);
     activeMenuValue = button.dataset.menuValue || DEFAULT_MENU_VALUE;
     updateMenuQueryParam(button.dataset.menuValue, options.replace);
-    loadCloudflareHistory(activeMenuValue);
     renderCardsLoadingState();
     await loadCards(cardSource, loadRequestId);
   } catch (error) {
@@ -314,16 +338,6 @@ function formatStoredAt(storedAt) {
   }).format(new Date(storedAt));
 }
 
-function formatServerStoredAt(storedAt) {
-  const normalizedDate = new Date(`${String(storedAt).replace(" ", "T")}Z`);
-
-  if (Number.isNaN(normalizedDate.getTime())) {
-    return storedAt;
-  }
-
-  return formatStoredAt(normalizedDate.toISOString());
-}
-
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -331,84 +345,6 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
-}
-
-function renderCloudflareHistoryLoading() {
-  cloudflareHistoryList.innerHTML = `
-    <div class="history-empty">
-      서버 히스토리를 불러오는 중입니다.
-    </div>
-  `;
-}
-
-function renderCloudflareHistoryEmpty(
-  message = "서버에 저장된 메뉴 히스토리가 없습니다.",
-) {
-  cloudflareHistoryList.innerHTML = `
-    <div class="history-empty">
-      ${escapeHtml(message)}
-    </div>
-  `;
-}
-
-function renderCloudflareHistory(winners) {
-  if (!Array.isArray(winners) || winners.length === 0) {
-    renderCloudflareHistoryEmpty();
-    return;
-  }
-
-  cloudflareHistoryList.innerHTML = winners
-    .map(
-      (winner) => `
-        <article class="history-card history-card--cloud">
-          <div class="history-card__meta">
-            <time class="history-card__time" datetime="${escapeHtml(winner.created_at)}">${escapeHtml(formatServerStoredAt(winner.created_at))}</time>
-          </div>
-          <div class="history-card__body">
-            ${
-              winner.image
-                ? `<img class="history-card__image" src="${escapeHtml(winner.image)}" alt="${escapeHtml(winner.card_name)}" />`
-                : '<div class="history-card__image history-card__image--empty"></div>'
-            }
-            <div class="history-card__content">
-              <h3>${escapeHtml(winner.card_name)}</h3>
-              <p>${escapeHtml(winner.description || "")}</p>
-            </div>
-          </div>
-        </article>
-      `,
-    )
-    .join("");
-}
-
-async function loadCloudflareHistory(menuValue) {
-  const historyRequestId = activeHistoryRequestId + 1;
-  activeHistoryRequestId = historyRequestId;
-  renderCloudflareHistoryLoading();
-
-  try {
-    const url = new URL("/api/winners", CLOUDFLARE_API_BASE_URL);
-    url.searchParams.set("menu", menuValue);
-
-    const response = await window.fetch(url);
-
-    if (historyRequestId !== activeHistoryRequestId) {
-      return;
-    }
-
-    if (!response.ok) {
-      throw new Error(`Failed to load Cloudflare history: ${response.status}`);
-    }
-
-    const payload = await response.json();
-    renderCloudflareHistory(payload.winners);
-  } catch (error) {
-    console.error(error);
-
-    if (historyRequestId === activeHistoryRequestId) {
-      renderCloudflareHistoryEmpty("서버 히스토리를 불러오지 못했습니다.");
-    }
-  }
 }
 
 function renderFinalCardsHistory() {
@@ -492,7 +428,6 @@ async function persistCloudflareWinner(card) {
       throw new Error(`Failed to save Cloudflare winner: ${response.status}`);
     }
 
-    await loadCloudflareHistory(menuValue);
   } catch (error) {
     console.error(error);
   }
@@ -710,6 +645,8 @@ function showFanfare() {
   const existing = document.querySelector(".fanfare");
   if (existing) existing.remove();
 
+  playFanfareSound();
+
   const fanfare = document.createElement("div");
   fanfare.className = "fanfare";
 
@@ -748,6 +685,124 @@ function showFanfare() {
   document.querySelector(".battle-panel").appendChild(fanfare);
 }
 
+function getAudioContext() {
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+
+  if (!AudioContext) {
+    return null;
+  }
+
+  selectionAudioContext = selectionAudioContext || new AudioContext();
+
+  if (selectionAudioContext.state === "suspended") {
+    selectionAudioContext.resume();
+  }
+
+  return selectionAudioContext;
+}
+
+function playSelectionSound() {
+  const audioContext = getAudioContext();
+
+  if (!audioContext) {
+    return;
+  }
+
+  const now = audioContext.currentTime;
+  const masterGain = audioContext.createGain();
+  masterGain.gain.setValueAtTime(0.0001, now);
+  masterGain.gain.exponentialRampToValueAtTime(0.14, now + 0.012);
+  masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.48);
+  masterGain.connect(audioContext.destination);
+
+  const delay = audioContext.createDelay();
+  const feedback = audioContext.createGain();
+  const echoGain = audioContext.createGain();
+
+  delay.delayTime.setValueAtTime(0.065, now);
+  feedback.gain.setValueAtTime(0.18, now);
+  echoGain.gain.setValueAtTime(0.26, now);
+  delay.connect(feedback);
+  feedback.connect(delay);
+  delay.connect(echoGain);
+  echoGain.connect(masterGain);
+
+  const notes = [
+    { frequency: 493.88, start: 0, duration: 0.16, peak: 0.45 },
+    { frequency: 739.99, start: 0.028, duration: 0.18, peak: 0.34 },
+    { frequency: 987.77, start: 0.07, duration: 0.22, peak: 0.24 },
+  ];
+
+  notes.forEach((note) => {
+    const oscillator = audioContext.createOscillator();
+    const noteGain = audioContext.createGain();
+    const startTime = now + note.start;
+    const endTime = startTime + note.duration;
+
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(note.frequency * 1.025, startTime);
+    oscillator.frequency.exponentialRampToValueAtTime(
+      note.frequency,
+      endTime,
+    );
+
+    noteGain.gain.setValueAtTime(0.0001, startTime);
+    noteGain.gain.exponentialRampToValueAtTime(note.peak, startTime + 0.01);
+    noteGain.gain.exponentialRampToValueAtTime(0.0001, endTime);
+
+    oscillator.connect(noteGain);
+    noteGain.connect(masterGain);
+    noteGain.connect(delay);
+    oscillator.start(startTime);
+    oscillator.stop(endTime + 0.02);
+  });
+}
+
+function playFanfareSound() {
+  const audioContext = getAudioContext();
+
+  if (!audioContext) {
+    return;
+  }
+
+  const now = audioContext.currentTime;
+  const masterGain = audioContext.createGain();
+  masterGain.gain.setValueAtTime(0.0001, now);
+  masterGain.gain.exponentialRampToValueAtTime(0.2, now + 0.04);
+  masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.95);
+  masterGain.connect(audioContext.destination);
+
+  const notes = [
+    { frequency: 523.25, start: 0, duration: 0.28 },
+    { frequency: 659.25, start: 0.09, duration: 0.3 },
+    { frequency: 783.99, start: 0.18, duration: 0.34 },
+    { frequency: 1046.5, start: 0.34, duration: 0.52 },
+  ];
+
+  notes.forEach((note) => {
+    const oscillator = audioContext.createOscillator();
+    const noteGain = audioContext.createGain();
+    const startTime = now + note.start;
+    const endTime = startTime + note.duration;
+
+    oscillator.type = "triangle";
+    oscillator.frequency.setValueAtTime(note.frequency, startTime);
+    oscillator.frequency.exponentialRampToValueAtTime(
+      note.frequency * 1.015,
+      endTime,
+    );
+
+    noteGain.gain.setValueAtTime(0.0001, startTime);
+    noteGain.gain.exponentialRampToValueAtTime(0.55, startTime + 0.025);
+    noteGain.gain.exponentialRampToValueAtTime(0.0001, endTime);
+
+    oscillator.connect(noteGain);
+    noteGain.connect(masterGain);
+    oscillator.start(startTime);
+    oscillator.stop(endTime + 0.03);
+  });
+}
+
 function chooseCard(index) {
   if (
     isTransitioning ||
@@ -757,6 +812,7 @@ function chooseCard(index) {
     return;
   }
 
+  playSelectionSound();
   isTransitioning = true;
   battleGrid.classList.add("is-choosing");
   lastWinnerIndex = index;

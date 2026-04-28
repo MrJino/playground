@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="../../favicon.ico" type="image/x-icon" />
+    <title>Pick your favorite Ranking</title>
+    <link rel="stylesheet" href="../styles.css" />
+  </head>
+  <body>
+    <main class="ranking-page">
+      <header class="ranking-header">
+        <a class="ranking-back-link" id="backToGameLink" href="../index.html">
+          돌아가기
+        </a>
+        <div>
+          <p class="ranking-eyebrow">Ranking</p>
+          <h1 id="rankingTitle">랭킹</h1>
+        </div>
+      </header>
+
+      <section class="ranking-board" aria-live="polite">
+        <div class="ranking-board__top">
+          <h2>우승 횟수 순위</h2>
+          <p id="rankingSummary">랭킹을 불러오는 중입니다.</p>
+        </div>
+        <div class="ranking-list" id="rankingList"></div>
+      </section>
+    </main>
+
+    <script src="./ranking.js"></script>
+  </body>
+</html>
