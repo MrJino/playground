@@ -77,6 +77,27 @@
           "icon": "./assets/icons/female-singer.svg"
         }
       ]
+    },
+    {
+      "id": "etc",
+      "label": "기타",
+      "isOpen": false,
+      "items": [
+        {
+          "value": "atashinchi-character",
+          "label": "아따맘마 캐릭터",
+          "menuLabel": "아따맘마 캐릭터",
+          "browserLabel": "아따맘마 캐릭터",
+          "cardSource": "res/etc/atashinchi-character/cards.json"
+        },
+        {
+          "value": "rude-miss-young-ae",
+          "label": "막돼먹은 영애씨",
+          "menuLabel": "막돼먹은 영애씨",
+          "browserLabel": "막돼먹은 영애씨",
+          "cardSource": "res/etc/rude-miss-young-ae/cards.json"
+        }
+      ]
     }
   ]
 }
