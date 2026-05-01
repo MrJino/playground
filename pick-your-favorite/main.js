@@ -15,13 +15,13 @@ let lastWinnerIndex = 0;
 let activeLoadRequestId = 0;
 let activeMenuValue = DEFAULT_MENU_VALUE;
 let menuGroups = [];
+let hasShownInitialBattlePair = false;
 
 const poolGrid = document.getElementById("poolGrid");
 const poolScroll = document.getElementById("poolScroll");
 const heroPlaceholder = document.getElementById("heroPlaceholder");
 const progressText = document.getElementById("progressText");
 const battleTitle = document.getElementById("battleTitle");
-const centerNote = document.getElementById("centerNote");
 const menuList = document.getElementById("menuList");
 const openMenuSearchButton = document.getElementById("openMenuSearchButton");
 const menuBrowserPanel = document.getElementById("menuBrowserPanel");
@@ -281,7 +281,6 @@ function showMenuBrowser(options = {}) {
   poolScroll.hidden = true;
   poolGrid.innerHTML = "";
   progressText.textContent = "";
-  centerNote.textContent = "";
   battlePanel.hidden = true;
   menuBrowserPanel.hidden = false;
   rankingButton.href = getRankingUrl(DEFAULT_MENU_VALUE);
@@ -404,7 +403,6 @@ async function activateMenuButton(button, options = {}) {
     await loadCards(cardSource, loadRequestId);
   } catch (error) {
     console.error(error);
-    centerNote.textContent = "카드 데이터를 불러오지 못했습니다.";
   }
 }
 
@@ -483,6 +481,7 @@ async function loadCards(cardSource, loadRequestId = activeLoadRequestId) {
   currentPair = [];
   isTransitioning = false;
   hasStoredFinalWinner = false;
+  hasShownInitialBattlePair = false;
 
   renderPool();
   renderBattle();
@@ -519,6 +518,7 @@ function renderCardsLoadingState() {
   selectedCards = [];
   currentPair = [];
   hasStoredFinalWinner = false;
+  hasShownInitialBattlePair = false;
 
   poolGrid.innerHTML = Array.from(
     { length: 16 },
@@ -534,7 +534,6 @@ function renderCardsLoadingState() {
   setBattleCardLoading(rightCard, rightImage, rightTitle, rightText, rightSource);
   battleTitle.textContent = "Loading Cards";
   progressText.textContent = "";
-  centerNote.textContent = "카드 데이터를 불러오는 중입니다.";
 }
 
 function readFinalCards() {
@@ -834,7 +833,6 @@ function renderBattle() {
     const winner = selectedCards[0];
     persistFinalWinner(winner);
     battleTitle.textContent = "Final Winner";
-    centerNote.textContent = "";
 
     const winnerEl = lastWinnerIndex === 0 ? leftCard : rightCard;
     const loserEl = lastWinnerIndex === 0 ? rightCard : leftCard;
@@ -868,7 +866,6 @@ function renderBattle() {
   );
 
   if (activePool.length < 2) {
-    centerNote.textContent = "Not enough cards remain to continue.";
     return;
   }
 
@@ -878,8 +875,22 @@ function renderBattle() {
   setBattleCard(currentPair[1], rightCard, rightImage, rightTitle, rightText, rightSource);
 
   battleTitle.textContent = `${currentRoundLabel} Match`;
-  centerNote.textContent = "";
   battleGrid.hidden = false;
+
+  if (!hasShownInitialBattlePair) {
+    hasShownInitialBattlePair = true;
+    battleCards.forEach((card) =>
+      card.classList.remove(
+        "is-entering",
+        "is-exiting",
+        "is-losing",
+        "is-winning-left",
+        "is-winning-right",
+      ),
+    );
+    return;
+  }
+
   triggerBattleEntry();
 }
 
@@ -887,7 +898,6 @@ function showByeAdvance(card) {
   currentPair = [];
   battleTitle.textContent = "Bye Advance";
   progressText.textContent = `${getRoundLabel(currentRoundCards.length)} ${selectedCards.length + 1} / ${getRoundTarget()}`;
-  centerNote.textContent = `${card.name} advances to the next round.`;
 
   battleGrid.classList.remove("is-choosing");
   battleGrid.classList.add("is-bye-advance");
@@ -1309,7 +1319,6 @@ async function initializeApp() {
   } catch (error) {
     console.error(error);
     renderMenuError();
-    centerNote.textContent = "메뉴 데이터를 불러오지 못했습니다.";
     return;
   }
 

@@ -925,13 +925,6 @@ body.modal-open {
     0 6px 18px rgba(0, 0, 0, 0.6);
 }
 
-.center-note {
-  margin-top: 22px;
-  text-align: center;
-  font-weight: 700;
-  color: var(--muted);
-}
-
 .ranking-page {
   width: min(1040px, 100%);
   min-height: 100vh;
